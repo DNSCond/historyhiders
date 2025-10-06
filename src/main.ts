@@ -1,0 +1,81 @@
+import { Devvit } from "@devvit/public-api";
+
+Devvit.configure({ redditAPI: true, });
+
+
+// Devvit.addMenuItem({
+//   label: 'count an account',
+//   location: 'subreddit', forUserType: 'moderator',
+//   async onPress(_event, context) {
+//     // context.ui.showToast('received');
+//     // const currentUsername = await context.reddit.getCurrentUsername(), { reddit, subredditName } = context;
+//     // if (currentUsername === undefined) return context.ui.showToast(`there is no currentUser`);
+//     // if (subredditName === undefined) return context.ui.showToast(`there is no subredditName`);
+//     // const array = [], username = currentUsername;//, username = `${subredditName}-ModTeam`;
+
+//     // for (let comment of await reddit.getCommentsByUser({ username, sort: 'new', limit: 1000, pageSize: 100 }).all()) {
+//     //   array.push(comment.id);
+//     // }
+
+//     // const reason = `u/${currentUsername} wanted me to count the words of u/${username}`,
+//     //   content = `Hello ${reason}\n\n- ` + array.sort().map(m => `\`${m}\``).join('\n- ');
+//     // await context.reddit.updateWikiPage({ content, subredditName, page: 'wordcounter', reason });
+//     // context.ui.showToast('success');
+//     context.ui.showForm(usernameEvalForm);
+//   },
+// });
+
+
+// const usernameEvalForm = Devvit.createForm(
+//   {
+//     fields: [
+//       {
+//         type: 'string',
+//         name: 'username',
+//         label: 'Enter a username',
+//         helpText: 'the user you want to evaluate. (without u/)',
+//         required: true,
+//       },
+//     ],
+//     title: 'Evaluate User',
+//     acceptLabel: 'Submit',
+//   },
+//   async function (event, context) {
+//     const currentUsername = await context.reddit.getCurrentUsername();
+//     const subredditName = await context.reddit.getCurrentSubredditName();
+//     if (currentUsername === undefined) return context.ui.showToast(`there is no currentUser`);
+//     if (subredditName === undefined) return context.ui.showToast(`there is no subredditName`);
+//     const username: string = event.values.username.trim().replace(/^u\//, '') ?? '[undefined]';
+//     if (/^[a-zA-Z0-9\-_]+$/.test(username)) {
+
+//       const array = [], { reddit } = context;
+
+//       for (let comment of await reddit.getCommentsByUser({ username, sort: 'new', limit: 1000, pageSize: 100 }).all()) {
+//         array.push(comment.id);
+//       }
+
+//       const reason = `u/${currentUsername} wanted me to count the words of u/${username}`,
+//         content = `Hello ${reason}\n\n- ` + array.sort().map(m => `\`${m}\``).join('\n- ');
+//       await context.reddit.updateWikiPage({ content, subredditName, page: 'wordcounter', reason });
+//       context.ui.showToast({ text: `Done, check the modmail` });
+//     } else if (username === '[undefined]') {
+//       context.ui.showToast({ text: `there was no username given` });
+//     } else {
+//       context.ui.showToast({ text: `that username is syntactically invalid` });
+//     }
+//   }
+// );
+
+
+// Devvit.addMenuItem({
+//   label: 'TeleportTo wordcounter Summery',
+//   description: 'a quick way to TeleportTo wordcounter Summery',
+//   location: 'subreddit', forUserType: 'moderator',
+//   async onPress(_, context) {
+//     const subredditName = context.subredditName;
+//     if (subredditName === undefined) return context.ui.showToast('no subredditName name');
+//     context.ui.navigateTo(`https://www.reddit.com/r/${subredditName}/wiki/wordcounter/`);
+//   },
+// });
+
+export default Devvit;
