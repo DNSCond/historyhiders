@@ -1,23 +1,13 @@
-# Getting started with historyhiders
+# HistoryHiders and HistoryFinders
 
-Your project has been created using a Devvit template.
+HistoryHiders and HistoryFinders are two bortherly bots that check user histories.
 
-## Next up
+you (as moderator) install HistoryHiders into your subreddit and it will send the ids of the recent posts and comments to a secret subreddit
+(view source code to see which). and HistoryFinders will check if they match.
 
-Next up is uploading and developing your app using playtest.
+// todo make reamde
 
-In the project directory, you can run:
+## source code
 
-### `npm run deploy`
-
-Upload the app to the App Directory. Uploaded apps are only visible to you (the app owner) and can only be installed to a small test subreddit with less than 200 subscribers.
-
-### `npm run dev`
-
-Installs your app to your test subreddit and starts a playtest session where a new version is installed whenever you save changes to your app code, and logs are continuously streamed.
-
-## Learn more
-
-You can learn more in the [documentation](https://developers.reddit.com/docs/).
-
-You can manage your apps in the [developer portal](https://developers.reddit.com/my/apps).
+[HistoryFinders's sourcecode is here](https://github.com/DNSCond/historyfinders).
+[HistoryHiders's sourcecode is here](https://github.com/DNSCond/historyhiders).

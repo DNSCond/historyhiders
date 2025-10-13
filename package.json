@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@devvit/public-api": "0.12.0",
-    "anthelpers": "^0.0.3"
+    "anthelpers": "^0.1.0"
   },
   "devDependencies": {
     "devvit": "0.12.0",

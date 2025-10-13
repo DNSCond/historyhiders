@@ -8,6 +8,8 @@ type AuthorData = {
   lastCheck: Date,
   isHiding: boolean,
   isCalculating: boolean,
+  equalsInPosts?: boolean,
+  equalsInComments?: boolean,
 };
 
 const currentlyTesting = true;
@@ -16,66 +18,72 @@ const OneDayInSeconds = 86400;
 Devvit.addTrigger({
   events: ['PostCreate', 'PostUpdate'],
   async onEvent(event, context) {
-    const authorId = event.author?.id, postId = event.post?.id, currentSubreddit = event.subreddit?.name;
-    if (!currentSubreddit) { return void console.error('currentSubreddit is (undefined):', currentSubreddit) }
-    if (!authorId) { return void console.error('authorId is (undefined):', authorId) }
-    if (!postId) { return void console.error('postId is (undefined):', postId) }
+    const { authorId, postId } = await valiDatePossibillity(event, context, 'post');
     const authorJson = await context.redis.get(`authorId-${authorId}`);
     const reportablePost = await context.reddit.getPostById(postId);
-    if (authorJson) {
-      const author = JSON.parse(authorJson) as AuthorData;
-      author.lastCheck = new Date(author.lastCheck);
-      if (author.isHiding) {
-        return void await context.reddit.report(reportablePost, {
-          reason: 'from my memory (cache) this user is hiding his history',
-        });
-      } else if (author.isCalculating) {
-        return void console.log(`author (${authorId}) is in calculation`);
-      }
-    }
-    await context.redis.set(`authorId-${authorId}`, JSON.stringify({
-      lastCheck: new Date, isHiding: false, isCalculating: true,
-    } as AuthorData));
-    await context.redis.expire(`authorId-${authorId}`, OneDayInSeconds * 10);
-    {
-      //= currentSubreddit, to
-      const { appVersion } = context;//subredditName = 'r/historyhiders_dev3',
-      const authorName = event.author?.name || authorId, author = await context.reddit.getUserById(authorId);
-      if (author === undefined) return void console.log(`author (${authorId}) is not found`);
-
-      const posts = (await author.getPosts({ sort: 'new', limit: 500 }).all()).map(m => m.id);
-      const comments = (await author.getComments({ sort: 'new', limit: 500 }).all()).map(m => m.id);
-      // await context.reddit.modMail.createConversation({
-      //   subredditName, to,
-      //   subject: `evauluationOf ${authorName}`,
-      //   body: `${jsonEncodeIndent({
-      //     accountId: authorId,
-      //     accountName: authorName,
-      //     date: new Date, appVersion,
-      //     history: { posts, comments },
-      //     currentlyTesting,
-      //   }, false)}`,
-      // });
-      const { redis } = context, hashKey = 'hashKey:' + today();
-      await redis.hSet(hashKey, {
-        [authorId]: JSON.stringify({
-          accountId: authorId,
-          accountName: authorName,
-          appVersion, currentlyTesting,
-          history: { posts, comments },
-          date: new Date,
-        })
-      });
-      await redis.expire(hashKey, OneDayInSeconds);
-    }
+    await ifHiding(event, context, authorJson, authorId, reportablePost);
   }
 });
 
+Devvit.addTrigger({
+  events: ['CommentCreate', 'CommentUpdate'],
+  async onEvent(event, context) {
+    const { authorId, postId } = await valiDatePossibillity(event, context, 'comment');
+    const authorJson = await context.redis.get(`authorId-${authorId}`);
+    const reportablePost = await context.reddit.getCommentById(postId);
+    await ifHiding(event, context, authorJson, authorId, reportablePost);
+  }
+});
+async function valiDatePossibillity(event: any, context: TriggerContext, type: 'post' | 'comment') {
+  const authorId = event.author?.id, postId = event[type]?.id, currentSubreddit = event.subreddit?.name;
+  if (!currentSubreddit) { console.error('currentSubreddit is (undefined):', currentSubreddit); throw new TypeError('currentSubreddit is (undefined)') }
+  if (!authorId) { console.error('authorId is (undefined):', authorId); throw new TypeError('authorId is (undefined)') }
+  if (!postId) { console.error(type + 'Id is (undefined):', postId); throw new TypeError(type + 'Id is (undefined):') }
+  return { authorId, postId, currentSubreddit };
+}
 
+async function ifHiding(event: any, context: TriggerContext, authorJson: any, authorId: string, reportablePost: any) {
+  if (authorJson) {
+    const author = JSON.parse(authorJson) as AuthorData;
+    author.lastCheck = new Date(author.lastCheck);
+    if (author.isHiding) {
+      return void await context.reddit.report(reportablePost, {
+        reason: 'from my memory (cache) this user is hiding his history',
+      });
+    } else if (author.isCalculating) {
+      return void console.log(`author (${authorId}) is in calculation`);
+    }
+  }
+  await context.redis.set(`authorId-${authorId}`, JSON.stringify({
+    lastCheck: new Date, isHiding: false, isCalculating: true,
+  } as AuthorData));
+  await context.redis.expire(`authorId-${authorId}`, OneDayInSeconds * 10);
+  {
+    //= currentSubreddit, to
+    const { appVersion } = context;//subredditName = 'r/historyhiders_dev3',
+    const authorName = event.author?.name || authorId, author = await context.reddit.getUserById(authorId);
+    if (author === undefined) return void console.log(`author (${authorId}) is not found`);
+
+    const posts = (await author.getPosts({ sort: 'new', limit: 500 }).all()).map(m => m.id);
+    const comments = (await author.getComments({ sort: 'new', limit: 500 }).all()).map(m => m.id);
+    const { redis } = context, hashKey = 'hashKey:' + today();
+    await redis.hSet(hashKey, {
+      [authorId]: JSON.stringify({
+        accountId: authorId,
+        accountName: authorName,
+        appVersion, currentlyTesting,
+        history: { posts, comments },
+        date: new Date,
+      })
+    });
+    await redis.expire(hashKey, OneDayInSeconds);
+  }
+}
 
 async function update(context: TriggerContext) {
-  const hourTime = '23', minutes = 0;
+  const hourTime = '20';
   {
+    const minutes = 0;
     const oldJobId = await context.redis.get('jobId');
     if (oldJobId) await context.scheduler.cancelJob(oldJobId);
     const jobId = await context.scheduler.runJob({
@@ -85,7 +93,19 @@ async function update(context: TriggerContext) {
     });
     await context.redis.set('jobId', jobId);
   }
+  {
+    const minutes = 50;
+    const oldJobId = await context.redis.get('jobId-daily_receiver');
+    if (oldJobId) await context.scheduler.cancelJob(oldJobId);
+    const jobId = await context.scheduler.runJob({
+      name: 'daily_receiver',
+      cron: `${minutes} ${hourTime} * * *`,
+      data: {},
+    });
+    await context.redis.set('jobId', jobId);
+  }
 }
+
 const dailyUserPayloadName = 'dailyUserPayloadName';
 Devvit.addTrigger({ event: 'AppInstall', async onEvent(_, context) { await update(context); }, });
 Devvit.addTrigger({ event: 'AppUpgrade', async onEvent(_, context) { await update(context); }, });
@@ -93,6 +113,11 @@ Devvit.addTrigger({ event: 'AppUpgrade', async onEvent(_, context) { await updat
 Devvit.addSchedulerJob({
   name: dailyUserPayloadName, async onRun(_event, context) {
     await updateWikipage(context);
+  },
+});
+Devvit.addSchedulerJob({
+  name: 'daily_receiver', async onRun(_event, context) {
+    await daily_receiver(context);
   },
 });
 
@@ -113,13 +138,30 @@ async function updateWikipage(context: TriggerContext | JobContext) {
   await context.reddit.updateWikiPage({ content, subredditName, page, reason, });
 }
 
-Devvit.addMenuItem({
-  label: 'postNow',
-  location: 'subreddit', forUserType: 'moderator',
-  async onPress(_event, context) {
-    await updateWikipage(context);
-  },
-});
+async function daily_receiver(context: TriggerContext | JobContext) {
+  const currentSubreddit = context.subredditName;
+  if (!currentSubreddit) { return void console.error('currentSubreddit is (undefined):', currentSubreddit) }
+  const page = `subreddits/${currentSubreddit}/reply`;
+  const wikipage = await context.reddit.getWikiPage('historyhiders_dev3', page);
+  const jsonic = JSON.parse(wikipage.content).r;
+  for (const element of jsonic) {
+    const authorId = element.aId, { equalsInPosts, equalsInComments } = element.h;
+    const isHiding = (equalsInPosts && equalsInComments) === false;
+    await context.redis.set(`authorId-${authorId}`, JSON.stringify({
+      lastCheck: new Date, isCalculating: false,
+      equalsInPosts, equalsInComments, isHiding,
+    } as AuthorData));
+    await context.redis.expire(`authorId-${authorId}`, OneDayInSeconds * 10);
+  }
+}
+
+// Devvit.addMenuItem({
+//   label: 'postNow',
+//   location: 'subreddit', forUserType: 'moderator',
+//   async onPress(_event, context) {
+//     await updateWikipage(context);
+//   },
+// });
 
 Devvit.addMenuItem({
   label: 'clear an account',
