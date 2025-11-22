@@ -1,0 +1,5 @@
+on hour 22:00 fetch all the users and make a wikipage on the subreddit.
+
+on 22:15 fetch all users and evaluate them.
+
+on 22:30 create the post.

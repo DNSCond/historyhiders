@@ -1,6 +1,7 @@
 import { Devvit, JobContext, TriggerContext } from "@devvit/public-api";
 import { jsonEncodeIndent } from "anthelpers";
 import { today } from "./helpers.js";
+import { UserAccount } from "./types.js";
 
 Devvit.configure({ redditAPI: true, redis: true });
 
@@ -57,15 +58,15 @@ async function ifHiding(event: any, context: TriggerContext, authorJson: any, au
   await context.redis.set(`authorId-${authorId}`, JSON.stringify({
     lastCheck: new Date, isHiding: false, isCalculating: true,
   } as AuthorData));
-  await context.redis.expire(`authorId-${authorId}`, OneDayInSeconds * 10);
+  await context.redis.expire(`authorId-${authorId}`, OneDayInSeconds * 28);
   {
     //= currentSubreddit, to
     const { appVersion } = context;//subredditName = 'r/historyhiders_dev3',
     const authorName = event.author?.name || authorId, author = await context.reddit.getUserById(authorId);
     if (author === undefined) return void console.log(`author (${authorId}) is not found`);
 
-    const posts = (await author.getPosts({ sort: 'new', limit: 500 }).all()).map(m => m.id);
-    const comments = (await author.getComments({ sort: 'new', limit: 500 }).all()).map(m => m.id);
+    const posts = (await author.getPosts({ sort: 'new', limit: 500 }).all()).map(m => ({ id: m.id, date: m.createdAt }));
+    const comments = (await author.getComments({ sort: 'new', limit: 500 }).all()).map(m => ({ id: m.id, date: m.createdAt }));
     const { redis } = context, hashKey = 'hashKey:' + today();
     await redis.hSet(hashKey, {
       [authorId]: JSON.stringify({
@@ -74,15 +75,15 @@ async function ifHiding(event: any, context: TriggerContext, authorJson: any, au
         appVersion, currentlyTesting,
         history: { posts, comments },
         date: new Date,
-      })
+      } as UserAccount)
     });
     await redis.expire(hashKey, OneDayInSeconds);
   }
 }
 
 async function update(context: TriggerContext) {
-  const hourTime = '20';
   {
+    const hourTime = '22';
     const minutes = 0;
     const oldJobId = await context.redis.get('jobId');
     if (oldJobId) await context.scheduler.cancelJob(oldJobId);
@@ -94,6 +95,7 @@ async function update(context: TriggerContext) {
     await context.redis.set('jobId', jobId);
   }
   {
+    const hourTime = '23';
     const minutes = 50;
     const oldJobId = await context.redis.get('jobId-daily_receiver');
     if (oldJobId) await context.scheduler.cancelJob(oldJobId);
@@ -127,44 +129,60 @@ async function updateWikipage(context: TriggerContext | JobContext) {
 
   const hashKey = 'hashKey:' + today(), subredditName = 'historyhiders_dev3';
   const items = await context.redis.hGetAll(hashKey);
-  let result: { c: any[], date: Date } = { c: [], date: new Date };
+  let result: { c: UserAccount[], date: Date } = { c: [], date: new Date };
 
   for (const entry of Object.values(items)) {
     const parsed = JSON.parse(entry as string);
-    result.c.push(parsed as any);
+    result.c.push(parsed as UserAccount);
   }
   const content = jsonEncodeIndent(result, false);
   const reason = `Update of r/${currentSubreddit} at ${Date()}`, page = `subreddits/${currentSubreddit}`;
-  await context.reddit.updateWikiPage({ content, subredditName, page, reason, });
+  await context.reddit.updateWikiPage({ content, subredditName, page, reason });
 }
 
 async function daily_receiver(context: TriggerContext | JobContext) {
   const currentSubreddit = context.subredditName;
   if (!currentSubreddit) { return void console.error('currentSubreddit is (undefined):', currentSubreddit) }
-  const page = `subreddits/${currentSubreddit}/reply`;
+  const page = `reply`, now = (new Date).setUTCHours(0, 0, 0, 0);
   const wikipage = await context.reddit.getWikiPage('historyhiders_dev3', page);
-  const jsonic = JSON.parse(wikipage.content).r;
-  for (const element of jsonic) {
-    const authorId = element.aId, { equalsInPosts, equalsInComments } = element.h;
-    const isHiding = (equalsInPosts && equalsInComments) === false;
-    await context.redis.set(`authorId-${authorId}`, JSON.stringify({
-      lastCheck: new Date, isCalculating: false,
-      equalsInPosts, equalsInComments, isHiding,
-    } as AuthorData));
-    await context.redis.expire(`authorId-${authorId}`, OneDayInSeconds * 10);
-  }
+  const jsonic = JSON.parse(wikipage.content).dateToPost;
+  // for (const element of jsonic) {
+  //   const authorId = element.aId, { equalsInPosts, equalsInComments } = element.h;
+  //   const isHiding = (equalsInPosts && equalsInComments) === false;
+  //   await context.redis.set(`authorId-${authorId}`, JSON.stringify({
+  //     lastCheck: new Date, isCalculating: false,
+  //     equalsInPosts, equalsInComments, isHiding,
+  //   } as AuthorData));
+  //   await context.redis.expire(`authorId-${authorId}`, OneDayInSeconds * 10);
+  // }
+  const sorted = Object.entries(jsonic).map(([dateString, postId]) => ({ date: new Date(dateString), postId }))
+    .sort((a, b) => +a.date - +b.date) as { date: Date, postId: string }[];
+  const posts: ({ date: Date; json: any; } | undefined)[] =
+    (await Promise.allSettled(sorted.filter(m => (now - +m.date) < OneDayInSeconds * 3)
+      .map(m => context.reddit.getPostById(m.postId))))
+      .map(promieResult => {
+        if (promieResult.status === 'fulfilled') {
+          const date = promieResult.value.createdAt;
+          const json = JSON.parse(promieResult.value.body ?? 'null');
+          return { date, json };
+        }
+      });
+  console.log(posts);
 }
 
-// Devvit.addMenuItem({
-//   label: 'postNow',
-//   location: 'subreddit', forUserType: 'moderator',
-//   async onPress(_event, context) {
-//     await updateWikipage(context);
-//   },
-// });
+Devvit.addMenuItem({
+  label: 'postNow (historyhiders)',
+  description: 'HistoryHiders',
+  location: 'subreddit', forUserType: 'moderator',
+  async onPress(_event, context) {
+    await updateWikipage(context);
+    context.ui.showToast('hiding in hibernation?')
+  },
+});
 
 Devvit.addMenuItem({
   label: 'clear an account',
+  description: 'HistoryHiders',
   location: 'subreddit', forUserType: 'moderator',
   async onPress(_event, context) {
     context.ui.showForm(usernameEvalForm);
