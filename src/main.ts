@@ -181,25 +181,25 @@ async function daily_receiver(context: TriggerContext | JobContext) {
   }
 }
 
-Devvit.addMenuItem({
-  label: 'postNow (History Hiders)',
-  description: 'History Hiders',
-  location: 'subreddit', forUserType: 'moderator',
-  async onPress(_event, context) {
-    await updateWikipage(context);
-    context.ui.showToast('hiding in hibernation?')
-  },
-});
+// Devvit.addMenuItem({
+//   label: 'postNow (History Hiders)',
+//   description: 'History Hiders',
+//   location: 'subreddit', forUserType: 'moderator',
+//   async onPress(_event, context) {
+//     await updateWikipage(context);
+//     context.ui.showToast('hiding in hibernation?')
+//   },
+// });
 
-Devvit.addMenuItem({
-  label: 'findNow (History Hiders)',
-  description: 'History Hiders',
-  location: 'subreddit', forUserType: 'moderator',
-  async onPress(_event, context) {
-    await daily_receiver(context);
-    context.ui.showToast('Done!');
-  },
-});
+// Devvit.addMenuItem({
+//   label: 'findNow (History Hiders)',
+//   description: 'History Hiders',
+//   location: 'subreddit', forUserType: 'moderator',
+//   async onPress(_event, context) {
+//     await daily_receiver(context);
+//     context.ui.showToast('Done!');
+//   },
+// });
 
 Devvit.addMenuItem({
   label: 'Evaluate an account',
@@ -247,14 +247,14 @@ const usernameEvalForm = Devvit.createForm(
   }
 );
 
-Devvit.addMenuItem({
-  label: 'goto account from id',
-  description: 'HistoryHiders',
-  location: 'subreddit',
-  async onPress(_event, context) {
-    context.ui.showForm(usernameGoToForm);
-  },
-});
+// Devvit.addMenuItem({
+//   label: 'goto account from id',
+//   description: 'HistoryHiders',
+//   location: 'subreddit',
+//   async onPress(_event, context) {
+//     context.ui.showForm(usernameGoToForm);
+//   },
+// });
 
 const usernameGoToForm = Devvit.createForm(
   {
