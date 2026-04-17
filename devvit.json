@@ -1,0 +1,46 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "historyhiders",
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.js"
+  },
+  "triggers": {
+    "onPostCreate": "/internal/triggers/contribution-create",
+    "onCommentCreate": "/internal/triggers/contribution-create",
+    "onPostUpdate": "/internal/triggers/contribution-create",
+    "onCommentUpdate": "/internal/triggers/contribution-create"
+  },
+  "scripts": {
+    "dev": "node --experimental-strip-types ./tools/build.ts --watch",
+    "build": "node --experimental-strip-types ./tools/build.ts --minify"
+  },
+  "dev": {
+    "subreddit": "historyhiders_dev3"
+  },
+  "permissions": {
+    "redis": true,
+    "reddit": {
+      "enable": true
+    }
+  },
+  "scheduler": {
+    "tasks": {
+      "publish-push": {
+        "endpoint": "/internal/cron/hourly-check",
+        "cron": "0 * * * *"
+      }
+    }
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "UpdateNow",
+        "description": "u/historyhiders",
+        "forUserType": "moderator",
+        "location": "subreddit",
+        "endpoint": "/internal/menu/activate-now"
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+message User {
+  string userId = 1;
+  repeated string subredditIds = 2;
+}
+
+message UserMessage {
+  repeated User users = 1;
+}
