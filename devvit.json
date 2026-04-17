@@ -35,11 +35,25 @@
   "menu": {
     "items": [
       {
-        "label": "UpdateNow",
-        "description": "u/historyhiders",
+        "label": "Update Now",
+        "description": "History Hiders",
         "forUserType": "moderator",
         "location": "subreddit",
         "endpoint": "/internal/menu/activate-now"
+      },
+      {
+        "label": "My Status",
+        "description": "History Hiders",
+        "forUserType": "user",
+        "location": "subreddit",
+        "endpoint": "/internal/menu/check-status"
+      },
+      {
+        "label": "delete My Status",
+        "description": "History Hiders",
+        "forUserType": "user",
+        "location": "subreddit",
+        "endpoint": "/internal/menu/delete-status"
       }
     ]
   }

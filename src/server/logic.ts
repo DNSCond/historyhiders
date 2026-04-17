@@ -1,6 +1,5 @@
 import type {Router, Response} from "express-serve-static-core";
 import {context, reddit, redis} from "@devvit/web/server";
-import {UserMessage} from "./userdata-protobuf";
 import type {
     UiResponse,
     OnCommentCreateRequest,
@@ -10,7 +9,8 @@ import type {
 import express from "express";
 import {ResolveSecondsAfter} from "anthelpers";
 import {RedisList} from "./helpers/RedisList.ts";
-import {CONTROLLER} from "./CarCONST.ts";
+import {CONTROLLER, isTestEnv} from "./CarCONST.ts";
+import {CSVLikeEncoder} from "../shared/CSVLikeEncoder.ts";
 
 
 export const router: Router = express.Router(), OneDayInSeconds = 86400;
@@ -63,12 +63,12 @@ router.post<string, never, TriggerResponse, OnCommentCreateRequest | OnPostCreat
 
 router.post<string, never>('/internal/menu/activate-now',
     async (_req, res) => {
-        await hourlyCheck(undefined, undefined, true);
+        await hourlyCheck(undefined, undefined);
         res.status(200).json({showToast: {appearance: 'success', text: 'success'}} as UiResponse);
     });
 router.post('/internal/cron/hourly-check', (req, res) => hourlyCheck(req, res));
 
-async function hourlyCheck(_req?: unknown, res?: Response, isTestEnv?: boolean) {
+async function hourlyCheck(_req?: unknown, res?: Response) {
     const date = new Date;
     if (!isTestEnv) {
         if (date.getHours() % 2 !== 0) {
@@ -78,25 +78,20 @@ async function hourlyCheck(_req?: unknown, res?: Response, isTestEnv?: boolean) 
     const list = new RedisList('users'), collection
         = await list.getItemsInsertedBetween(0, date);
     if (!isTestEnv) await list.deleteAllElementsBefore(date);
-    const prefix = 'subreddits//';
-    const array: UserMessage = {users: Array()};
-    for (const {member} of collection) {
-        // @ts-expect-error
-        const user = await reddit.getUserById(member);
-        const callbackResult = await (user ? redis.get(`authorId-${user}`) : undefined)?.then(user => {
-            const subredditListPromise = user ? redis.get(`authorId-${user}`) : undefined;
-            return subredditListPromise?.then(subredditList => ({
-                userId: member,
-                subredditIds: subredditList?.startsWith(prefix) ? (
+    const prefix = 'subreddits//', array = {
+        users: (await flattenPromiseArray(
+            collection.map(({member}) =>
+                (member ? redis.get(`authorId-${member}`) : undefined
+                )?.then(subredditList => subredditList?.startsWith(prefix) ? (
                     subredditList.slice(prefix.length).split(',')
-                ) : undefined,
-            }));
-        });
-        if (callbackResult?.subredditIds) {
-            array.users.push(callbackResult as { userId: string, subredditIds: string[] });
-        }
-    }
-    const content = JSON.stringify(array);
+                ) : undefined).then(subredditIds => (
+                    subredditIds ? {userId: member, subredditIds} : undefined
+                )) ?? undefinedPromise()
+            )
+        )).fulfilled.filter(Boolean)
+    };
+    // @ts-expect-error
+    const content = '    ' + CSVLikeEncoder.encode(array.users);
     await reddit.updateWikiPage({
         subredditName: CONTROLLER, content,//: toBase64(encoded) || '*empty*',
         page: "/incomming/sub-" + CONTROLLER.charAt(0),
@@ -104,6 +99,56 @@ async function hourlyCheck(_req?: unknown, res?: Response, isTestEnv?: boolean) 
     });
     res?.status(200).json({status: 'ok'});
 }
+
+router.post<string, never>("/internal/menu/check-status",
+    async (_req, res) => {
+        const calculatingKey = `authorId-${context.userId}`, lastCheckedAt =
+            await redis.get(`lastCheckedAt-${calculatingKey}`);
+        if (lastCheckedAt) {
+            res.status(200).json({
+                showToast: {
+                    appearance: 'success',
+                    text: `you were checked at ${new Date(lastCheckedAt)}`
+                }
+            } as UiResponse);
+        } else {
+            res.status(200).json({
+                showToast: {
+                    appearance: 'success',
+                    text: 'you were not checked in the last day'
+                }
+            } as UiResponse);
+        }
+    });
+router.post<string, never>("/internal/menu/delete-status",
+    async (_req, res) => {
+        const calculatingKey = `authorId-${context.userId}`;
+        await redis.del(`lastCheckedAt-${calculatingKey}`);
+        await redis.get(calculatingKey);
+        res.status(200).json({
+            showToast: {
+                appearance: 'success',
+                text: 'Deleted'
+            }
+        } as UiResponse);
+    });
+
+function flattenPromiseArray<T = any>(array: Promise<T>[]): Promise<{ fulfilled: T[], rejected: any[] }> {
+    return Promise.allSettled(array).then(promiseSettledResult => {
+        // noinspection JSPrimitiveTypeWrapperUsage
+        const result = {fulfilled: Array<T>(), rejected: new Array};
+        for (const promiseSettledResultElement of promiseSettledResult) {
+            // @ts-expect-error
+            result[promiseSettledResultElement.status].push(promiseSettledResultElement.value ?? promiseSettledResultElement.reason);
+        }
+        return result;
+    });
+}
+
+function undefinedPromise(): Promise<undefined> {
+    return new Promise<undefined>(resolve => resolve(undefined))
+}
+
 
 /*function redditReport(id: string, reason: string): any {
     // @ts-expect-error

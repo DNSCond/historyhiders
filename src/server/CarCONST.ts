@@ -1,2 +1,2 @@
-const CONTROLLER = 'historyhiders_dev3';
-export {CONTROLLER};
+const CONTROLLER = 'historyhiders_dev3', isTestEnv: boolean = true;
+export {CONTROLLER, isTestEnv};
