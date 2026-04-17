@@ -12,7 +12,7 @@ import {ResolveSecondsAfter} from "anthelpers";
 import {RedisList} from "./helpers/RedisList.ts";
 // import {mappingFilter, toolBox} from "./mappingFilter.ts";
 import {CONTROLLER} from "./CarCONST.ts";
-import {toBase64} from "./toBase64.gemini.ts";
+// import {toBase64} from "./toBase64.gemini.ts";
 
 
 export const router: Router = express.Router(), OneDayInSeconds = 86400;
@@ -98,7 +98,9 @@ async function hourlyCheck(_req?: unknown, res?: Response, isTestEnv?: boolean) 
             array.users.push(callbackResult as { userId: string, subredditIds: string[] });
         }
     }
-    const encoded = UserMessage.encode(array).finish();
+    const content = JSON.stringify(array);
+    //const encoded = UserMessage.encode(array).finish();
+    //console.log(toBase64(encoded));
     // const array: UserMessage = {
     //     users: mappingFilter<PromiseSettledResult<{
     //         userId: string;
@@ -126,9 +128,8 @@ async function hourlyCheck(_req?: unknown, res?: Response, isTestEnv?: boolean) 
     //         return toolBox.removeItem;
     //     }),
     // }, encoded = UserMessage.encode(array).finish();
-    console.log(toBase64(encoded))
     await reddit.updateWikiPage({
-        subredditName: CONTROLLER, content: toBase64(encoded) || '*empty*',
+        subredditName: CONTROLLER, content,//: toBase64(encoded) || '*empty*',
         page: "/incomming/sub-" + CONTROLLER.charAt(0),
         reason: `r/${context.subredditName}//${Date()}`,
     });
